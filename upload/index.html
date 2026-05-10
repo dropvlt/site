@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>dropvlt — upload</title>
-<script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500&family=Geist+Mono:wght@300;400&display=swap');
 
@@ -57,6 +56,24 @@
     margin-bottom: 2rem;
   }
 
+  .auth-input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    color: var(--text);
+    background: var(--surface);
+    margin-bottom: 0.75rem;
+    transition: border-color 0.12s;
+    text-align: center;
+    letter-spacing: 0.05em;
+  }
+
+  .auth-input:focus { outline: none; border-color: var(--border-strong); }
+  .auth-input::placeholder { color: var(--muted); letter-spacing: 0; }
+
   .auth-btn {
     width: 100%;
     padding: 0.75rem;
@@ -72,6 +89,15 @@
   }
 
   .auth-btn:hover { opacity: 0.85; }
+  .auth-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .auth-error {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: #e5434a;
+    margin-top: 0.75rem;
+    min-height: 1em;
+  }
 
   /* UPLOAD APP */
   #upload-app { display: none; }
@@ -312,7 +338,9 @@
   <div class="auth-card">
     <div class="auth-logo">dropvlt</div>
     <div class="auth-sub">admin access only</div>
+    <input type="password" class="auth-input" id="password-input" placeholder="enter password" autocomplete="current-password">
     <button class="auth-btn" id="login-btn">log in</button>
+    <div class="auth-error" id="auth-error"></div>
   </div>
 </div>
 
@@ -321,7 +349,7 @@
   <header>
     <a href="index.html" class="logo">dropvlt / upload</a>
     <div class="header-right">
-      <span class="user-badge" id="user-email"></span>
+      <span class="user-badge">admin</span>
       <button class="logout-btn" id="logout-btn">log out</button>
     </div>
   </header>
@@ -365,41 +393,74 @@
 </div>
 
 <script>
-  const netlifyIdentity = window.netlifyIdentity;
-  let currentUser = null;
+  // Password is kept in memory only — cleared when the page is closed/refreshed.
+  let sessionPassword = null;
   let filesToUpload = [];
   let creatingNew = false;
 
-  netlifyIdentity.on('init', user => {
-    if (user) showApp(user);
-  });
+  // ── Auth ──────────────────────────────────────────────────────────────────
 
-  netlifyIdentity.on('login', user => {
-    netlifyIdentity.close();
-    showApp(user);
-  });
+  async function attemptLogin(password) {
+    const loginBtn = document.getElementById('login-btn');
+    const errEl   = document.getElementById('auth-error');
+    loginBtn.disabled = true;
+    errEl.textContent = '';
 
-  netlifyIdentity.on('logout', () => {
-    currentUser = null;
-    document.getElementById('upload-app').style.display = 'none';
-    document.getElementById('auth-gate').style.display = 'flex';
-  });
+    try {
+      // Probe the function with the password. A 400 (missing path/content) means auth passed.
+      // A 401/403 means wrong password.
+      const res = await fetch('/.netlify/functions/upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Upload-Password': password
+        },
+        body: JSON.stringify({ probe: true })
+      });
 
-  document.getElementById('login-btn').addEventListener('click', () => {
-    netlifyIdentity.open('login');
-  });
+      if (res.status === 401 || res.status === 403) {
+        errEl.textContent = 'incorrect password';
+        loginBtn.disabled = false;
+        return;
+      }
 
-  document.getElementById('logout-btn').addEventListener('click', () => {
-    netlifyIdentity.logout();
-  });
+      // Auth passed (any non-401/403 response — likely 400 for missing fields).
+      sessionPassword = password;
+      showApp();
+    } catch {
+      errEl.textContent = 'could not reach server';
+      loginBtn.disabled = false;
+    }
+  }
 
-  function showApp(user) {
-    currentUser = user;
+  function showApp() {
     document.getElementById('auth-gate').style.display = 'none';
     document.getElementById('upload-app').style.display = 'block';
-    document.getElementById('user-email').textContent = user.email;
     loadFolders();
   }
+
+  function logout() {
+    sessionPassword = null;
+    filesToUpload   = [];
+    document.getElementById('upload-app').style.display  = 'none';
+    document.getElementById('auth-gate').style.display   = 'flex';
+    document.getElementById('password-input').value      = '';
+    document.getElementById('auth-error').textContent    = '';
+    document.getElementById('login-btn').disabled        = false;
+  }
+
+  document.getElementById('login-btn').addEventListener('click', () => {
+    const pw = document.getElementById('password-input').value.trim();
+    if (pw) attemptLogin(pw);
+  });
+
+  document.getElementById('password-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('login-btn').click();
+  });
+
+  document.getElementById('logout-btn').addEventListener('click', logout);
+
+  // ── Folders ───────────────────────────────────────────────────────────────
 
   function loadFolders() {
     fetch('manifest.json?v=' + Date.now())
@@ -418,18 +479,20 @@
 
   document.getElementById('toggle-new-btn').addEventListener('click', () => {
     creatingNew = !creatingNew;
-    document.getElementById('new-folder-input').style.display = creatingNew ? 'block' : 'none';
-    document.getElementById('folder-select').style.display = creatingNew ? 'none' : 'block';
-    document.getElementById('toggle-new-btn').textContent = creatingNew ? '← existing' : '+ new folder';
+    document.getElementById('new-folder-input').style.display  = creatingNew ? 'block' : 'none';
+    document.getElementById('folder-select').style.display     = creatingNew ? 'none'  : 'block';
+    document.getElementById('toggle-new-btn').textContent      = creatingNew ? '← existing' : '+ new folder';
   });
 
-  const dropZone = document.getElementById('drop-zone');
+  // ── Drop zone ─────────────────────────────────────────────────────────────
+
+  const dropZone  = document.getElementById('drop-zone');
   const fileInput = document.getElementById('file-input');
 
-  dropZone.addEventListener('click', () => fileInput.click());
-  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
-  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-  dropZone.addEventListener('drop', e => {
+  dropZone.addEventListener('click',    () => fileInput.click());
+  dropZone.addEventListener('dragover', e  => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave',()  => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop',     e  => {
     e.preventDefault();
     dropZone.classList.remove('dragover');
     addFiles(Array.from(e.dataTransfer.files));
@@ -441,8 +504,8 @@
   });
 
   function formatSize(bytes) {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1024)            return bytes + ' B';
+    if (bytes < 1024 * 1024)     return (bytes / 1024).toFixed(1) + ' KB';
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   }
 
@@ -453,7 +516,7 @@
 
   function renderQueue() {
     const queue = document.getElementById('file-queue');
-    const btn = document.getElementById('upload-btn');
+    const btn   = document.getElementById('upload-btn');
 
     if (filesToUpload.length === 0) {
       queue.style.display = 'none';
@@ -485,50 +548,53 @@
     setStatus('');
   });
 
-  function setStatus(msg) {
-    document.getElementById('status-msg').textContent = msg;
-  }
+  function setStatus(msg)  { document.getElementById('status-msg').textContent = msg; }
 
   function setProgress(pct) {
-    const bar = document.getElementById('progress-bar');
+    const bar  = document.getElementById('progress-bar');
     const fill = document.getElementById('progress-fill');
     if (pct === null) { bar.style.display = 'none'; return; }
-    bar.style.display = 'block';
-    fill.style.width = pct + '%';
+    bar.style.display  = 'block';
+    fill.style.width   = pct + '%';
   }
+
+  // ── Upload ────────────────────────────────────────────────────────────────
 
   document.getElementById('upload-btn').addEventListener('click', async () => {
     const folderName = creatingNew
       ? document.getElementById('new-folder-input').value.trim().replace(/[^a-zA-Z0-9_\-]/g, '-')
       : document.getElementById('folder-select').value;
 
-    if (!folderName) { setStatus('pick or create a folder first'); return; }
-    if (filesToUpload.length === 0) { setStatus('no files selected'); return; }
-
-    const token = currentUser?.token?.access_token;
-    if (!token) { setStatus('not authenticated'); return; }
+    if (!folderName)          { setStatus('pick or create a folder first'); return; }
+    if (!filesToUpload.length){ setStatus('no files selected'); return; }
+    if (!sessionPassword)     { logout(); return; }
 
     document.getElementById('upload-btn').disabled = true;
     setProgress(0);
     setStatus(`uploading 0 / ${filesToUpload.length}`);
 
-    let done = 0;
-    let errors = 0;
+    let done = 0, errors = 0;
 
     for (const file of filesToUpload) {
       try {
-        const base64 = await toBase64(file);
+        const base64   = await toBase64(file);
         const safeName = file.name.replace(/[^a-zA-Z0-9._\-() ]/g, '_');
-        const path = `projects/${folderName}/${safeName}`;
+        const path     = `projects/${folderName}/${safeName}`;
 
         const res = await fetch('/.netlify/functions/upload', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            'Content-Type':    'application/json',
+            'X-Upload-Password': sessionPassword
           },
           body: JSON.stringify({ path, content: base64, filename: safeName })
         });
+
+        if (res.status === 401 || res.status === 403) {
+          setStatus('session expired — please log in again');
+          logout();
+          return;
+        }
 
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
@@ -562,7 +628,7 @@
   function toBase64(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onload  = () => resolve(reader.result.split(',')[1]);
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
