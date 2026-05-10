@@ -183,10 +183,10 @@
 
   const IMAGE_EXTS = ['jpg','jpeg','png','gif','webp','svg','avif'];
 
-  if (ext === 'pdf' || type === 'pdf') {
+    if (ext === 'pdf' || type === 'pdf') {
     const el = document.getElementById('pdf-viewer');
     el.style.display = 'block';
-    el.src = filePath;
+    el.src = `https://raw.githubusercontent.com/GITHUB_OWNER/GITHUB_REPO/main/${filePath}`;
 
   } else if (IMAGE_EXTS.includes(ext) || type === 'image') {
     const el = document.getElementById('image-viewer');
