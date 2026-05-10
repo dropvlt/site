@@ -175,7 +175,7 @@
 
   // Raw GitHub URL — files are served directly from the repo
   const rawBase = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main`;
-  const rawUrl  = `${rawBase}/${filePath}`;
+  const rawUrl  = `/api/file?f=${encodeURIComponent(folder)}&file=${encodeURIComponent(file)}`;
 
   document.getElementById('bc-folder').textContent = folder;
   document.getElementById('bc-folder').href = `folder.html?f=${encodeURIComponent(folder)}`;
