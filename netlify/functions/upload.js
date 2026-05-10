@@ -105,7 +105,7 @@ exports.handler = async (event) => {
     return { statusCode: 413, headers, body: JSON.stringify({ error: 'file too large (max 20MB)' }) };
   }
 
-  const apiPath = `/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${safePath}`;
+  const apiPath = `/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${safePath.split('/').map(p => encodeURIComponent(p)).join('/')}`;
 
   // Fetch existing file sha (needed for updates, not creates).
   let sha;
