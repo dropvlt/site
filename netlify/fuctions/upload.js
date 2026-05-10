@@ -1,9 +1,22 @@
-const https = require('https');
+const https  = require('https');
+const crypto = require('crypto');
 
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-const GITHUB_REPO = process.env.GITHUB_REPO;
-const GITHUB_OWNER = process.env.GITHUB_OWNER;
-const NETLIFY_SITE_ID = process.env.NETLIFY_SITE_ID;
+const GITHUB_TOKEN    = process.env.GITHUB_TOKEN;
+const GITHUB_REPO     = process.env.GITHUB_REPO;
+const GITHUB_OWNER    = process.env.GITHUB_OWNER;
+const UPLOAD_PASSWORD = process.env.UPLOAD_PASSWORD;
+
+// Constant-time comparison to prevent timing-based password leaks.
+function safeEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) {
+    crypto.timingSafeEqual(bufA, Buffer.alloc(bufA.length));
+    return false;
+  }
+  return crypto.timingSafeEqual(bufA, bufB);
+}
 
 function httpsRequest(options, body) {
   return new Promise((resolve, reject) => {
@@ -21,42 +34,23 @@ function httpsRequest(options, body) {
   });
 }
 
-async function verifyNetlifyJWT(token) {
-  if (!token) return null;
-  try {
-    const res = await httpsRequest({
-      hostname: 'api.netlify.com',
-      path: `/api/v1/sites/${NETLIFY_SITE_ID}/identity/token`,
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    if (res.status === 200 && res.body?.id) return res.body;
-    return null;
-  } catch {
-    return null;
-  }
-}
-
 function sanitizePath(rawPath) {
   const parts = rawPath.split('/');
-  const safe = parts.map(p =>
-    p.replace(/\.\./g, '').replace(/[^a-zA-Z0-9._\-() ]/g, '_').trim()
-  ).filter(Boolean);
+  const safe  = parts
+    .map(p => p.replace(/\.\./g, '').replace(/[^a-zA-Z0-9._\-() ]/g, '_').trim())
+    .filter(Boolean);
 
-  if (safe.length < 3) return null;
+  if (safe.length < 3)        return null;
   if (safe[0] !== 'projects') return null;
-  if (safe.length > 3) return null;
+  if (safe.length > 3)        return null;
 
   return safe.join('/');
 }
 
 exports.handler = async (event) => {
   const headers = {
-    'Access-Control-Allow-Origin': process.env.URL || '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Origin':  process.env.URL || '*',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Upload-Password',
     'Content-Type': 'application/json'
   };
 
@@ -68,27 +62,32 @@ exports.handler = async (event) => {
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'method not allowed' }) };
   }
 
-  const authHeader = event.headers['authorization'] || '';
-  const token = authHeader.replace('Bearer ', '').trim();
+  // ── Password auth ────────────────────────────────────────────────────────
+  if (!UPLOAD_PASSWORD) {
+    return { statusCode: 500, headers, body: JSON.stringify({ error: 'UPLOAD_PASSWORD env var not configured' }) };
+  }
 
-  if (!token) {
+  const provided = (event.headers['x-upload-password'] || '').trim();
+  if (!safeEqual(provided, UPLOAD_PASSWORD)) {
     return { statusCode: 401, headers, body: JSON.stringify({ error: 'unauthorized' }) };
   }
 
-  const user = await verifyNetlifyJWT(token);
-  if (!user) {
-    return { statusCode: 401, headers, body: JSON.stringify({ error: 'invalid or expired token' }) };
-  }
-
-  if (!GITHUB_TOKEN || !GITHUB_REPO || !GITHUB_OWNER) {
-    return { statusCode: 500, headers, body: JSON.stringify({ error: 'server not configured' }) };
-  }
-
+  // ── Parse body ───────────────────────────────────────────────────────────
   let body;
   try {
     body = JSON.parse(event.body);
   } catch {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'invalid json' }) };
+  }
+
+  // Probe: used by the login flow to confirm the password is correct.
+  if (body.probe) {
+    return { statusCode: 200, headers, body: JSON.stringify({ ok: true }) };
+  }
+
+  // ── Upload ───────────────────────────────────────────────────────────────
+  if (!GITHUB_TOKEN || !GITHUB_REPO || !GITHUB_OWNER) {
+    return { statusCode: 500, headers, body: JSON.stringify({ error: 'server not configured' }) };
   }
 
   const { path: rawPath, content } = body;
@@ -108,15 +107,16 @@ exports.handler = async (event) => {
 
   const apiPath = `/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${safePath}`;
 
-  let sha = undefined;
+  // Fetch existing file sha (needed for updates, not creates).
+  let sha;
   const existing = await httpsRequest({
     hostname: 'api.github.com',
     path: apiPath,
     method: 'GET',
     headers: {
       'Authorization': `token ${GITHUB_TOKEN}`,
-      'User-Agent': 'dropvlt-upload',
-      'Accept': 'application/vnd.github.v3+json'
+      'User-Agent':    'dropvlt-upload',
+      'Accept':        'application/vnd.github.v3+json'
     }
   });
 
@@ -132,13 +132,13 @@ exports.handler = async (event) => {
 
   const result = await httpsRequest({
     hostname: 'api.github.com',
-    path: apiPath,
-    method: 'PUT',
+    path:     apiPath,
+    method:   'PUT',
     headers: {
-      'Authorization': `token ${GITHUB_TOKEN}`,
-      'User-Agent': 'dropvlt-upload',
-      'Accept': 'application/vnd.github.v3+json',
-      'Content-Type': 'application/json',
+      'Authorization':  `token ${GITHUB_TOKEN}`,
+      'User-Agent':     'dropvlt-upload',
+      'Accept':         'application/vnd.github.v3+json',
+      'Content-Type':   'application/json',
       'Content-Length': Buffer.byteLength(JSON.stringify(payload))
     }
   }, payload);
