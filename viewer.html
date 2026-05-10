@@ -195,7 +195,7 @@
   if (ext === 'pdf' || type === 'pdf') {
     const el = document.getElementById('pdf-viewer');
     el.style.display = 'block';
-    el.src = `https://docs.google.com/viewer?url=${encodeURIComponent(rawUrl)}&embedded=true`;
+    el.src = rawUrl;
 
   } else if (IMAGE_EXTS.includes(ext) || type === 'image') {
     const el = document.getElementById('image-viewer');
