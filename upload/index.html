@@ -409,7 +409,7 @@ a<!DOCTYPE html>
     try {
       // Probe the function with the password. A 400 (missing path/content) means auth passed.
       // A 401/403 means wrong password.
-      const res = await fetch('/.netlify/functions/upload', {
+      const res = await fetch('/api/upload', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -581,7 +581,7 @@ a<!DOCTYPE html>
         const safeName = file.name.replace(/[^a-zA-Z0-9._\-() ]/g, '_');
         const path     = `projects/${folderName}/${safeName}`;
 
-        const res = await fetch('/.netlify/functions/upload', {
+        const res = await fetch('/api/upload', {
           method: 'POST',
           headers: {
             'Content-Type':    'application/json',
