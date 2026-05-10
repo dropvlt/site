@@ -27,7 +27,7 @@ module.exports = async function handler(req, res) {
   });
 
   if (result.status !== 200 || !result.body.content) {
-    return res.status(404).end('not found');
+    return res.status(404).json({ status: result.status, body: result.body, owner: process.env.GITHUB_OWNER, repo: process.env.GITHUB_REPO });
   }
 
   const ext = filename.split('.').pop().toLowerCase();
