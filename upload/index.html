@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>dropvlt — upload</title>
+<script src="https://identity.netlify.com/v1/netlify-identity-widget.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500&family=Geist+Mono:wght@300;400&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #fafaf9;
+    --surface: #ffffff;
+    --border: #e5e5e3;
+    --border-strong: #d4d4d0;
+    --text: #1a1a18;
+    --muted: #8a8a85;
+    --subtle: #f5f5f3;
+    --accent: #1a1a18;
+    --mono: 'Geist Mono', monospace;
+    --sans: 'Geist', sans-serif;
+    --radius: 10px;
+  }
+
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); font-weight: 400; min-height: 100vh; -webkit-font-smoothing: antialiased; }
+
+  /* AUTH GATE */
+  #auth-gate {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .auth-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 2.5rem;
+    width: 100%;
+    max-width: 360px;
+    text-align: center;
+  }
+
+  .auth-logo {
+    font-family: var(--mono);
+    font-size: 1rem;
+    color: var(--text);
+    margin-bottom: 0.5rem;
+  }
+
+  .auth-sub {
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-bottom: 2rem;
+  }
+
+  .auth-btn {
+    width: 100%;
+    padding: 0.75rem;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-family: var(--sans);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+
+  .auth-btn:hover { opacity: 0.85; }
+
+  /* UPLOAD APP */
+  #upload-app { display: none; }
+
+  header {
+    padding: 1.5rem 2.5rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .logo { font-family: var(--mono); font-size: 0.9rem; color: var(--text); text-decoration: none; }
+
+  .header-right { display: flex; align-items: center; gap: 1rem; }
+
+  .user-badge {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    color: var(--muted);
+    background: var(--subtle);
+    border: 1px solid var(--border);
+    padding: 0.3rem 0.75rem;
+    border-radius: 6px;
+  }
+
+  .logout-btn {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--muted);
+    background: none;
+    border: 1px solid var(--border);
+    padding: 0.3rem 0.75rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+
+  .logout-btn:hover { border-color: var(--border-strong); color: var(--text); }
+
+  main { padding: 3rem 2.5rem; max-width: 760px; }
+
+  .section-label { font-size: 0.72rem; font-family: var(--mono); color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 1rem; }
+
+  /* FOLDER SELECTOR */
+  .folder-row {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 2rem;
+    align-items: center;
+  }
+
+  .folder-select {
+    flex: 1;
+    padding: 0.65rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--text);
+    background: var(--surface);
+    appearance: none;
+    cursor: pointer;
+    transition: border-color 0.12s;
+  }
+
+  .folder-select:focus { outline: none; border-color: var(--border-strong); }
+
+  .new-folder-input {
+    flex: 1;
+    padding: 0.65rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--text);
+    background: var(--surface);
+    transition: border-color 0.12s;
+    display: none;
+  }
+
+  .new-folder-input:focus { outline: none; border-color: var(--border-strong); }
+  .new-folder-input::placeholder { color: var(--muted); }
+
+  .toggle-new-btn {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--muted);
+    background: none;
+    border: 1px solid var(--border);
+    padding: 0.65rem 1rem;
+    border-radius: 8px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.12s;
+  }
+
+  .toggle-new-btn:hover { border-color: var(--border-strong); color: var(--text); }
+
+  /* DROP ZONE */
+  .drop-zone {
+    border: 1.5px dashed var(--border-strong);
+    border-radius: var(--radius);
+    padding: 3.5rem 2rem;
+    text-align: center;
+    transition: all 0.15s;
+    cursor: pointer;
+    background: var(--surface);
+    margin-bottom: 1.5rem;
+  }
+
+  .drop-zone.dragover {
+    border-color: var(--accent);
+    background: var(--subtle);
+  }
+
+  .drop-icon {
+    width: 40px;
+    height: 40px;
+    margin: 0 auto 1rem;
+    background: var(--subtle);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .drop-icon svg { width: 20px; height: 20px; stroke: var(--muted); fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+
+  .drop-title { font-size: 0.9rem; font-weight: 500; margin-bottom: 0.4rem; }
+  .drop-sub { font-size: 0.78rem; color: var(--muted); }
+
+  #file-input { display: none; }
+
+  /* FILE QUEUE */
+  .file-queue { display: none; flex-direction: column; gap: 0.5rem; margin-bottom: 1.5rem; }
+
+  .queue-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+  }
+
+  .queue-name { font-size: 0.85rem; flex: 1; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .queue-size { font-family: var(--mono); font-size: 0.65rem; color: var(--muted); }
+
+  .queue-remove {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0 0.25rem;
+    transition: color 0.1s;
+  }
+
+  .queue-remove:hover { color: #e5434a; }
+
+  .progress-bar {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    display: none;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.3s;
+    width: 0%;
+  }
+
+  /* ACTIONS */
+  .action-row { display: flex; gap: 0.75rem; align-items: center; }
+
+  .upload-btn {
+    padding: 0.7rem 1.75rem;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-family: var(--sans);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+
+  .upload-btn:hover { opacity: 0.85; }
+  .upload-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .clear-btn {
+    padding: 0.7rem 1.25rem;
+    background: none;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: var(--sans);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+
+  .clear-btn:hover { border-color: var(--border-strong); color: var(--text); }
+
+  .status-msg { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); }
+
+  /* NOTICE */
+  .notice {
+    margin-top: 3rem;
+    padding: 1rem 1.25rem;
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-radius: 8px;
+    font-size: 0.78rem;
+    color: #92400e;
+    line-height: 1.6;
+  }
+
+  .notice strong { font-weight: 500; }
+</style>
+</head>
+<body>
+
+<!-- AUTH GATE — shown until logged in -->
+<div id="auth-gate">
+  <div class="auth-card">
+    <div class="auth-logo">dropvlt</div>
+    <div class="auth-sub">admin access only</div>
+    <button class="auth-btn" id="login-btn">log in</button>
+  </div>
+</div>
+
+<!-- UPLOAD APP — shown only after auth -->
+<div id="upload-app">
+  <header>
+    <a href="index.html" class="logo">dropvlt / upload</a>
+    <div class="header-right">
+      <span class="user-badge" id="user-email"></span>
+      <button class="logout-btn" id="logout-btn">log out</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="section-label">destination folder</div>
+    <div class="folder-row">
+      <select class="folder-select" id="folder-select">
+        <option value="">loading folders...</option>
+      </select>
+      <input type="text" class="new-folder-input" id="new-folder-input" placeholder="new-folder-name">
+      <button class="toggle-new-btn" id="toggle-new-btn">+ new folder</button>
+    </div>
+
+    <div class="section-label">files</div>
+    <div class="drop-zone" id="drop-zone">
+      <div class="drop-icon">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      </div>
+      <div class="drop-title">drop files here</div>
+      <div class="drop-sub">or click to browse</div>
+      <input type="file" id="file-input" multiple>
+    </div>
+
+    <div class="progress-bar" id="progress-bar">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+
+    <div class="file-queue" id="file-queue"></div>
+
+    <div class="action-row">
+      <button class="upload-btn" id="upload-btn" disabled>upload files</button>
+      <button class="clear-btn" id="clear-btn">clear</button>
+      <span class="status-msg" id="status-msg"></span>
+    </div>
+
+    <div class="notice">
+      <strong>how uploading works:</strong> files are committed directly to your GitHub repo via the GitHub API. after uploading, Netlify auto-rebuilds the site in ~30 seconds and your files appear live. make sure your repo is connected to Netlify.
+    </div>
+  </main>
+</div>
+
+<script>
+  const netlifyIdentity = window.netlifyIdentity;
+  let currentUser = null;
+  let filesToUpload = [];
+  let creatingNew = false;
+
+  netlifyIdentity.on('init', user => {
+    if (user) showApp(user);
+  });
+
+  netlifyIdentity.on('login', user => {
+    netlifyIdentity.close();
+    showApp(user);
+  });
+
+  netlifyIdentity.on('logout', () => {
+    currentUser = null;
+    document.getElementById('upload-app').style.display = 'none';
+    document.getElementById('auth-gate').style.display = 'flex';
+  });
+
+  document.getElementById('login-btn').addEventListener('click', () => {
+    netlifyIdentity.open('login');
+  });
+
+  document.getElementById('logout-btn').addEventListener('click', () => {
+    netlifyIdentity.logout();
+  });
+
+  function showApp(user) {
+    currentUser = user;
+    document.getElementById('auth-gate').style.display = 'none';
+    document.getElementById('upload-app').style.display = 'block';
+    document.getElementById('user-email').textContent = user.email;
+    loadFolders();
+  }
+
+  function loadFolders() {
+    fetch('manifest.json?v=' + Date.now())
+      .then(r => r.json())
+      .then(data => {
+        const sel = document.getElementById('folder-select');
+        const projects = data.projects || [];
+        sel.innerHTML = projects.length === 0
+          ? '<option value="">no folders yet — create one</option>'
+          : projects.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
+      })
+      .catch(() => {
+        document.getElementById('folder-select').innerHTML = '<option value="">could not load folders</option>';
+      });
+  }
+
+  document.getElementById('toggle-new-btn').addEventListener('click', () => {
+    creatingNew = !creatingNew;
+    document.getElementById('new-folder-input').style.display = creatingNew ? 'block' : 'none';
+    document.getElementById('folder-select').style.display = creatingNew ? 'none' : 'block';
+    document.getElementById('toggle-new-btn').textContent = creatingNew ? '← existing' : '+ new folder';
+  });
+
+  const dropZone = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('file-input');
+
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    addFiles(Array.from(e.dataTransfer.files));
+  });
+
+  fileInput.addEventListener('change', e => {
+    addFiles(Array.from(e.target.files));
+    fileInput.value = '';
+  });
+
+  function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function addFiles(newFiles) {
+    filesToUpload = [...filesToUpload, ...newFiles];
+    renderQueue();
+  }
+
+  function renderQueue() {
+    const queue = document.getElementById('file-queue');
+    const btn = document.getElementById('upload-btn');
+
+    if (filesToUpload.length === 0) {
+      queue.style.display = 'none';
+      btn.disabled = true;
+      return;
+    }
+
+    queue.style.display = 'flex';
+    btn.disabled = false;
+    queue.innerHTML = filesToUpload.map((f, i) => `
+      <div class="queue-item">
+        <span class="queue-name">${f.name}</span>
+        <span class="queue-size">${formatSize(f.size)}</span>
+        <button class="queue-remove" data-i="${i}" title="remove">×</button>
+      </div>
+    `).join('');
+
+    queue.querySelectorAll('.queue-remove').forEach(btn => {
+      btn.addEventListener('click', () => {
+        filesToUpload.splice(parseInt(btn.dataset.i), 1);
+        renderQueue();
+      });
+    });
+  }
+
+  document.getElementById('clear-btn').addEventListener('click', () => {
+    filesToUpload = [];
+    renderQueue();
+    setStatus('');
+  });
+
+  function setStatus(msg) {
+    document.getElementById('status-msg').textContent = msg;
+  }
+
+  function setProgress(pct) {
+    const bar = document.getElementById('progress-bar');
+    const fill = document.getElementById('progress-fill');
+    if (pct === null) { bar.style.display = 'none'; return; }
+    bar.style.display = 'block';
+    fill.style.width = pct + '%';
+  }
+
+  document.getElementById('upload-btn').addEventListener('click', async () => {
+    const folderName = creatingNew
+      ? document.getElementById('new-folder-input').value.trim().replace(/[^a-zA-Z0-9_\-]/g, '-')
+      : document.getElementById('folder-select').value;
+
+    if (!folderName) { setStatus('pick or create a folder first'); return; }
+    if (filesToUpload.length === 0) { setStatus('no files selected'); return; }
+
+    const token = currentUser?.token?.access_token;
+    if (!token) { setStatus('not authenticated'); return; }
+
+    document.getElementById('upload-btn').disabled = true;
+    setProgress(0);
+    setStatus(`uploading 0 / ${filesToUpload.length}`);
+
+    let done = 0;
+    let errors = 0;
+
+    for (const file of filesToUpload) {
+      try {
+        const base64 = await toBase64(file);
+        const safeName = file.name.replace(/[^a-zA-Z0-9._\-() ]/g, '_');
+        const path = `projects/${folderName}/${safeName}`;
+
+        const res = await fetch('/.netlify/functions/upload', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ path, content: base64, filename: safeName })
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || res.statusText);
+        }
+
+        done++;
+      } catch (e) {
+        console.error(e);
+        errors++;
+      }
+
+      setProgress(Math.round(((done + errors) / filesToUpload.length) * 100));
+      setStatus(`uploading ${done + errors} / ${filesToUpload.length}`);
+    }
+
+    setProgress(100);
+
+    if (errors === 0) {
+      setStatus(`✓ ${done} file${done !== 1 ? 's' : ''} uploaded — site rebuilding now`);
+      filesToUpload = [];
+      renderQueue();
+      setTimeout(loadFolders, 4000);
+    } else {
+      setStatus(`${done} uploaded, ${errors} failed — check console`);
+    }
+
+    document.getElementById('upload-btn').disabled = false;
+  });
+
+  function toBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+</script>
+</body>
+</html>
