@@ -141,7 +141,7 @@
   <a href="#" id="bc-folder" class="bc-link"></a>
   <span class="sep">/</span>
   <span class="bc-current" id="bc-file"></span>
-  <a href="#" id="dl-btn" class="btn" download>↓ download</a>
+  <a href="#" id="dl-btn" class="btn">↓ download</a>
 </header>
 
 <div class="viewer-wrap">
@@ -151,7 +151,7 @@
   <div id="doc-viewer"></div>
   <div id="unsupported">
     <span>no preview available</span>
-    <a href="#" id="dl-fallback" class="btn" download>↓ download file</a>
+    <a href="#" id="dl-fallback" class="btn">↓ download file</a>
   </div>
 </div>
 
@@ -161,12 +161,21 @@
 </footer>
 
 <script>
+  // ── Config — update these two values to match your GitHub repo ──────────
+  const GITHUB_OWNER = 'REPLACE_WITH_YOUR_GITHUB_USERNAME';
+  const GITHUB_REPO  = 'REPLACE_WITH_YOUR_REPO_NAME';
+  // ────────────────────────────────────────────────────────────────────────
+
   const params = new URLSearchParams(location.search);
   const folder = params.get('f') || '';
-  const file = params.get('file') || '';
-  const type = (params.get('type') || '').toLowerCase();
-  const ext = file.split('.').pop().toLowerCase();
+  const file   = params.get('file') || '';
+  const type   = (params.get('type') || '').toLowerCase();
+  const ext    = file.split('.').pop().toLowerCase();
   const filePath = `projects/${folder}/${file}`;
+
+  // Raw GitHub URL — files are served directly from the repo
+  const rawBase = `https://raw.githubusercontent.com/${GITHUB_OWNER}/${GITHUB_REPO}/main`;
+  const rawUrl  = `${rawBase}/${filePath}`;
 
   document.getElementById('bc-folder').textContent = folder;
   document.getElementById('bc-folder').href = `folder.html?f=${encodeURIComponent(folder)}`;
@@ -175,43 +184,47 @@
   document.getElementById('footer-type').textContent = type || ext;
   document.title = `dropvlt — ${file}`;
 
-  const dlBtn = document.getElementById('dl-btn');
-  dlBtn.href = filePath;
-  dlBtn.setAttribute('download', file);
-  document.getElementById('dl-fallback').href = filePath;
+  // Download buttons point to raw GitHub URL
+  document.getElementById('dl-btn').href = rawUrl;
+  document.getElementById('dl-btn').setAttribute('download', file);
+  document.getElementById('dl-fallback').href = rawUrl;
   document.getElementById('dl-fallback').setAttribute('download', file);
 
   const IMAGE_EXTS = ['jpg','jpeg','png','gif','webp','svg','avif'];
 
-    if (ext === 'pdf' || type === 'pdf') {
+  if (ext === 'pdf' || type === 'pdf') {
     const el = document.getElementById('pdf-viewer');
     el.style.display = 'block';
-    el.src = `https://raw.githubusercontent.com/GITHUB_OWNER/GITHUB_REPO/main/${filePath}`;
+    el.src = rawUrl;
 
   } else if (IMAGE_EXTS.includes(ext) || type === 'image') {
     const el = document.getElementById('image-viewer');
     el.style.display = 'flex';
-    document.getElementById('viewer-img').src = filePath;
+    document.getElementById('viewer-img').src = rawUrl;
 
   } else if (type === 'youtube' || ext === 'youtube') {
     const el = document.getElementById('youtube-viewer');
     el.style.display = 'flex';
-    dlBtn.style.display = 'none';
-    fetch(filePath).then(r => r.text()).then(text => {
-      const videoId = text.trim().match(/(?:v=|youtu\.be\/)([^&\n?#]+)/)?.[1];
-      if (videoId) document.getElementById('yt-frame').src = `https://www.youtube.com/embed/${videoId}`;
-    });
+    document.getElementById('dl-btn').style.display = 'none';
+    fetch(rawUrl)
+      .then(r => r.text())
+      .then(text => {
+        const videoId = text.trim().match(/(?:v=|youtu\.be\/)([^&\n?#]+)/)?.[1];
+        if (videoId) document.getElementById('yt-frame').src = `https://www.youtube.com/embed/${videoId}`;
+      });
 
-  } else if (['txt','md'].includes(ext) || type === 'doc') {
+  } else if (['txt', 'md'].includes(ext) || type === 'doc') {
     const el = document.getElementById('doc-viewer');
     el.style.display = 'block';
-    fetch(filePath).then(r => r.text()).then(text => {
-      el.innerHTML = `<pre style="white-space:pre-wrap;font-family:var(--mono);font-size:0.8rem;line-height:1.9;color:var(--text);">${text.replace(/</g,'&lt;')}</pre>`;
-    });
+    fetch(rawUrl)
+      .then(r => r.text())
+      .then(text => {
+        el.innerHTML = `<pre style="white-space:pre-wrap;font-family:var(--mono);font-size:0.8rem;line-height:1.9;color:var(--text);">${text.replace(/</g, '&lt;')}</pre>`;
+      });
 
   } else {
     document.getElementById('unsupported').style.display = 'flex';
-    dlBtn.style.display = 'none';
+    document.getElementById('dl-btn').style.display = 'none';
   }
 </script>
 </body>
